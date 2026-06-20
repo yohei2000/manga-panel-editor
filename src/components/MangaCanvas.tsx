@@ -65,6 +65,86 @@ function useAssetImage(assetId: string): HTMLImageElement | undefined {
   return image;
 }
 
+function panelShape(panel: Panel) {
+  return panel.shape ?? 'rect';
+}
+
+function panelSlantOffset(panel: Panel): number {
+  return Math.min(92, panel.width * 0.18);
+}
+
+function panelPolygonPoints(panel: Panel): number[] {
+  const offset = panelSlantOffset(panel);
+  if (panelShape(panel) === 'slantLeft') {
+    return [
+      panel.x + offset,
+      panel.y,
+      panel.x + panel.width,
+      panel.y,
+      panel.x + panel.width - offset,
+      panel.y + panel.height,
+      panel.x,
+      panel.y + panel.height
+    ];
+  }
+
+  return [
+    panel.x,
+    panel.y,
+    panel.x + panel.width - offset,
+    panel.y,
+    panel.x + panel.width,
+    panel.y + panel.height,
+    panel.x + offset,
+    panel.y + panel.height
+  ];
+}
+
+function drawPanelClip(context: Konva.Context, panel: Panel): void {
+  const shape = panelShape(panel);
+  context.beginPath();
+  if (shape === 'ellipse') {
+    context.ellipse(
+      panel.x + panel.width / 2,
+      panel.y + panel.height / 2,
+      panel.width / 2,
+      panel.height / 2,
+      0,
+      0,
+      Math.PI * 2
+    );
+    context.closePath();
+    return;
+  }
+
+  if (shape === 'slantLeft' || shape === 'slantRight') {
+    const points = panelPolygonPoints(panel);
+    context.moveTo(points[0], points[1]);
+    for (let index = 2; index < points.length; index += 2) {
+      context.lineTo(points[index], points[index + 1]);
+    }
+    context.closePath();
+    return;
+  }
+
+  context.rect(panel.x, panel.y, panel.width, panel.height);
+  context.closePath();
+}
+
+function bubbleTailPoints(element: BubbleElement): number[] {
+  const direction = element.tailDirection ?? 'bottom';
+  if (direction === 'top') {
+    return [element.width * 0.42, element.height * 0.18, element.tailX, element.tailY, element.width * 0.58, element.height * 0.18];
+  }
+  if (direction === 'left') {
+    return [element.width * 0.18, element.height * 0.42, element.tailX, element.tailY, element.width * 0.18, element.height * 0.58];
+  }
+  if (direction === 'right') {
+    return [element.width * 0.82, element.height * 0.42, element.tailX, element.tailY, element.width * 0.82, element.height * 0.58];
+  }
+  return [element.width * 0.55, element.height * 0.78, element.tailX, element.tailY, element.width * 0.42, element.height * 0.82];
+}
+
 function ImageNode({ element, selected }: { element: ImageElement; selected: boolean }) {
   const image = useAssetImage(element.assetId);
   const updateElement = useMangaStore((state) => state.updateElement);
@@ -140,7 +220,7 @@ function BubbleNode({ element, selected }: { element: BubbleElement; selected: b
       }}
     >
       <Line
-        points={[element.width * 0.55, element.height * 0.78, element.tailX, element.tailY, element.width * 0.42, element.height * 0.82]}
+        points={bubbleTailPoints(element)}
         closed
         fill={element.fill}
         stroke={element.stroke}
@@ -178,6 +258,23 @@ function BubbleNode({ element, selected }: { element: BubbleElement; selected: b
           strokeWidth={5}
           dash={[16, 10]}
           listening={false}
+        />
+      )}
+      {selected && (
+        <Circle
+          x={element.tailX}
+          y={element.tailY}
+          radius={14}
+          fill="#ffffff"
+          stroke="#0f766e"
+          strokeWidth={5}
+          draggable
+          onDragEnd={(event) => {
+            updateElement<BubbleElement>(element.id, {
+              tailX: event.target.x(),
+              tailY: event.target.y()
+            });
+          }}
         />
       )}
     </Group>
@@ -243,6 +340,145 @@ function ElementNode({ element, selected }: { element: MangaElement; selected: b
   return <FocusLinesNode element={element} selected={selected} />;
 }
 
+function PanelFill({ panel, onSelect }: { panel: Panel; onSelect: () => void }) {
+  const updatePanel = useMangaStore((state) => state.updatePanel);
+  const commonHandlers = {
+    onClick: (event: Konva.KonvaEventObject<MouseEvent>) => {
+      event.cancelBubble = true;
+      onSelect();
+    },
+    onTap: (event: Konva.KonvaEventObject<Event>) => {
+      event.cancelBubble = true;
+      onSelect();
+    }
+  };
+  const shape = panelShape(panel);
+
+  if (shape === 'ellipse') {
+    return (
+      <Ellipse
+        x={panel.x + panel.width / 2}
+        y={panel.y + panel.height / 2}
+        radiusX={panel.width / 2}
+        radiusY={panel.height / 2}
+        fill="#ffffff"
+        draggable
+        {...commonHandlers}
+        onDragEnd={(event) => {
+          updatePanel(panel.id, {
+            x: event.target.x() - panel.width / 2,
+            y: event.target.y() - panel.height / 2
+          });
+        }}
+      />
+    );
+  }
+
+  if (shape === 'slantLeft' || shape === 'slantRight') {
+    return (
+      <Line
+        points={panelPolygonPoints(panel)}
+        closed
+        fill="#ffffff"
+        draggable
+        {...commonHandlers}
+        onDragEnd={(event) => {
+          updatePanel(panel.id, {
+            x: panel.x + event.target.x(),
+            y: panel.y + event.target.y()
+          });
+        }}
+      />
+    );
+  }
+
+  return (
+    <Rect
+      x={panel.x}
+      y={panel.y}
+      width={panel.width}
+      height={panel.height}
+      fill="#ffffff"
+      draggable
+      {...commonHandlers}
+      onDragEnd={(event) => {
+        updatePanel(panel.id, {
+          x: event.target.x(),
+          y: event.target.y()
+        });
+      }}
+    />
+  );
+}
+
+function PanelBorder({ panel, selected }: { panel: Panel; selected: boolean }) {
+  const shape = panelShape(panel);
+  const stroke = selected ? '#0f766e' : '#111827';
+  const strokeWidth = selected ? 8 : 5;
+
+  if (shape === 'ellipse') {
+    return (
+      <Ellipse
+        x={panel.x + panel.width / 2}
+        y={panel.y + panel.height / 2}
+        radiusX={panel.width / 2}
+        radiusY={panel.height / 2}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        listening={false}
+      />
+    );
+  }
+
+  if (shape === 'slantLeft' || shape === 'slantRight') {
+    return (
+      <Line
+        points={panelPolygonPoints(panel)}
+        closed
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        lineJoin="round"
+        listening={false}
+      />
+    );
+  }
+
+  return (
+    <Rect
+      x={panel.x}
+      y={panel.y}
+      width={panel.width}
+      height={panel.height}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      listening={false}
+    />
+  );
+}
+
+function PanelResizeHandle({ panel }: { panel: Panel }) {
+  const updatePanel = useMangaStore((state) => state.updatePanel);
+  return (
+    <Rect
+      x={panel.x + panel.width - 18}
+      y={panel.y + panel.height - 18}
+      width={36}
+      height={36}
+      fill="#ffffff"
+      stroke="#0f766e"
+      strokeWidth={5}
+      cornerRadius={6}
+      draggable
+      onDragEnd={(event) => {
+        updatePanel(panel.id, {
+          width: event.target.x() + 18 - panel.x,
+          height: event.target.y() + 18 - panel.y
+        });
+      }}
+    />
+  );
+}
+
 function PanelContent({ panel, elements, selectedPanelId, selectedElementId }: { panel: Panel; elements: MangaElement[]; selectedPanelId: string | null; selectedElementId: string | null }) {
   const selectPanel = useMangaStore((state) => state.selectPanel);
   const panelElements = elements.filter((element) => element.panelId === panel.id);
@@ -252,37 +488,16 @@ function PanelContent({ panel, elements, selectedPanelId, selectedElementId }: {
     <>
       <Group
         clipFunc={(context) => {
-          context.rect(panel.x, panel.y, panel.width, panel.height);
+          drawPanelClip(context, panel);
         }}
       >
-        <Rect
-          x={panel.x}
-          y={panel.y}
-          width={panel.width}
-          height={panel.height}
-          fill="#ffffff"
-          onClick={(event) => {
-            event.cancelBubble = true;
-            selectPanel(panel.id);
-          }}
-          onTap={(event) => {
-            event.cancelBubble = true;
-            selectPanel(panel.id);
-          }}
-        />
+        <PanelFill panel={panel} onSelect={() => selectPanel(panel.id)} />
         {panelElements.map((element) => (
           <ElementNode key={element.id} element={element} selected={selectedElementId === element.id} />
         ))}
       </Group>
-      <Rect
-        x={panel.x}
-        y={panel.y}
-        width={panel.width}
-        height={panel.height}
-        stroke={isSelected ? '#0f766e' : '#111827'}
-        strokeWidth={isSelected ? 8 : 5}
-        listening={false}
-      />
+      <PanelBorder panel={panel} selected={isSelected} />
+      {isSelected && <PanelResizeHandle panel={panel} />}
       <Text
         x={panel.x + 14}
         y={panel.y + 12}

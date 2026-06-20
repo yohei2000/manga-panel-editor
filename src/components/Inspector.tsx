@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useMangaStore } from '../store/useMangaStore';
-import type { BubbleElement, FocusLineElement, ImageElement, MangaElement } from '../types/manga';
+import type { BubbleElement, BubbleTailDirection, FocusLineElement, ImageElement, MangaElement, Panel, PanelShape } from '../types/manga';
 
 function NumberField({ label, value, onChange, min, max, step = 1 }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; step?: number }) {
   return (
@@ -34,6 +34,48 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
       <input type="color" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
+}
+
+function SelectField<T extends string>({ label, value, onChange, options }: { label: string; value: T; onChange: (value: T) => void; options: Array<{ value: T; label: string }> }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value as T)}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+const panelShapeOptions: Array<{ value: PanelShape; label: string }> = [
+  { value: 'rect', label: '四角' },
+  { value: 'ellipse', label: '楕円' },
+  { value: 'slantLeft', label: '斜め左' },
+  { value: 'slantRight', label: '斜め右' }
+];
+
+const bubbleTailDirectionOptions: Array<{ value: BubbleTailDirection; label: string }> = [
+  { value: 'bottom', label: '下' },
+  { value: 'top', label: '上' },
+  { value: 'left', label: '左' },
+  { value: 'right', label: '右' }
+];
+
+function bubbleTailPreset(element: BubbleElement, tailDirection: BubbleTailDirection): Pick<BubbleElement, 'tailDirection' | 'tailX' | 'tailY'> {
+  if (tailDirection === 'top') {
+    return { tailDirection, tailX: element.width * 0.42, tailY: -64 };
+  }
+  if (tailDirection === 'left') {
+    return { tailDirection, tailX: -64, tailY: element.height * 0.56 };
+  }
+  if (tailDirection === 'right') {
+    return { tailDirection, tailX: element.width + 64, tailY: element.height * 0.44 };
+  }
+  return { tailDirection, tailX: element.width * 0.58, tailY: element.height + 64 };
 }
 
 function ImageInspector({ element }: { element: ImageElement }) {
@@ -71,6 +113,12 @@ function BubbleInspector({ element }: { element: BubbleElement }) {
         <NumberField label="幅" value={element.width} min={40} onChange={(width) => updateElement<BubbleElement>(element.id, { width })} />
         <NumberField label="高さ" value={element.height} min={40} onChange={(height) => updateElement<BubbleElement>(element.id, { height })} />
         <NumberField label="文字" value={element.fontSize} min={8} onChange={(fontSize) => updateElement<BubbleElement>(element.id, { fontSize })} />
+        <SelectField
+          label="しっぽ方向"
+          value={element.tailDirection ?? 'bottom'}
+          options={bubbleTailDirectionOptions}
+          onChange={(tailDirection) => updateElement<BubbleElement>(element.id, bubbleTailPreset(element, tailDirection))}
+        />
         <NumberField label="しっぽX" value={element.tailX} onChange={(tailX) => updateElement<BubbleElement>(element.id, { tailX })} />
         <NumberField label="しっぽY" value={element.tailY} onChange={(tailY) => updateElement<BubbleElement>(element.id, { tailY })} />
         <ColorField label="塗り" value={element.fill} onChange={(fill) => updateElement<BubbleElement>(element.id, { fill })} />
@@ -92,6 +140,24 @@ function FocusLinesInspector({ element }: { element: FocusLineElement }) {
       <NumberField label="太さ" value={element.strokeWidth} min={1} onChange={(strokeWidth) => updateElement<FocusLineElement>(element.id, { strokeWidth })} />
       <NumberField label="seed" value={element.seed} onChange={(seed) => updateElement<FocusLineElement>(element.id, { seed })} />
       <ColorField label="色" value={element.color} onChange={(color) => updateElement<FocusLineElement>(element.id, { color })} />
+    </div>
+  );
+}
+
+function PanelInspector({ panel }: { panel: Panel }) {
+  const updatePanel = useMangaStore((state) => state.updatePanel);
+  return (
+    <div className="fieldGrid">
+      <NumberField label="X" value={panel.x} min={0} onChange={(x) => updatePanel(panel.id, { x })} />
+      <NumberField label="Y" value={panel.y} min={0} onChange={(y) => updatePanel(panel.id, { y })} />
+      <NumberField label="幅" value={panel.width} min={80} onChange={(width) => updatePanel(panel.id, { width })} />
+      <NumberField label="高さ" value={panel.height} min={80} onChange={(height) => updatePanel(panel.id, { height })} />
+      <SelectField
+        label="形"
+        value={panel.shape ?? 'rect'}
+        options={panelShapeOptions}
+        onChange={(shape) => updatePanel(panel.id, { shape })}
+      />
     </div>
   );
 }
@@ -136,12 +202,7 @@ export function Inspector() {
       ) : selectedPanel ? (
         <>
           <h3>{selectedPanel.name}</h3>
-          <div className="fieldGrid readOnlyGrid">
-            <div><span>X</span><strong>{selectedPanel.x}</strong></div>
-            <div><span>Y</span><strong>{selectedPanel.y}</strong></div>
-            <div><span>幅</span><strong>{selectedPanel.width}</strong></div>
-            <div><span>高さ</span><strong>{selectedPanel.height}</strong></div>
-          </div>
+          <PanelInspector panel={selectedPanel} />
         </>
       ) : (
         <p className="emptyState">コマまたはオブジェクトを選択</p>

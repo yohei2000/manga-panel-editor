@@ -2,6 +2,8 @@ export const PAGE_WIDTH = 1080;
 export const PAGE_HEIGHT = 1536;
 
 export type TemplateId = 'twoVertical' | 'fourStrip' | 'fourGrid';
+export type PanelShape = 'rect' | 'ellipse' | 'slantLeft' | 'slantRight';
+export type BubbleTailDirection = 'bottom' | 'top' | 'left' | 'right';
 
 export interface MangaProject {
   id: string;
@@ -28,6 +30,7 @@ export interface Panel {
   y: number;
   width: number;
   height: number;
+  shape?: PanelShape;
 }
 
 export type MangaElement = ImageElement | BubbleElement | FocusLineElement;
@@ -67,6 +70,7 @@ export interface BubbleElement extends Omit<BaseElement, 'type'> {
   height: number;
   text: string;
   fontSize: number;
+  tailDirection?: BubbleTailDirection;
   tailX: number;
   tailY: number;
   fill: string;

@@ -11,6 +11,7 @@ import {
   type MangaPage,
   type MangaProject,
   type Panel,
+  type PanelShape,
   type TemplateId
 } from '../types/manga';
 import {
@@ -22,6 +23,7 @@ import {
 } from '../db/mangaDb';
 
 type ElementPatch<T extends MangaElement = MangaElement> = Partial<Omit<T, 'id' | 'type'>>;
+type PanelPatch = Partial<Omit<Panel, 'id'>>;
 
 interface HistoryState {
   past: MangaProject[];
@@ -46,6 +48,7 @@ interface MangaStore {
   addImageToSelectedPanel: () => void;
   addBubble: () => void;
   addFocusLines: () => void;
+  updatePanel: (panelId: string, patch: PanelPatch) => void;
   updateElement: <T extends MangaElement>(elementId: string, patch: ElementPatch<T>) => void;
   deleteSelected: () => void;
   undo: () => void;
@@ -236,6 +239,7 @@ export const useMangaStore = create<MangaStore>((set, get) => ({
       fontSize: 38,
       tailX: width * 0.58,
       tailY: height + 64,
+      tailDirection: 'bottom',
       fill: '#ffffff',
       stroke: '#111827'
     };
@@ -288,6 +292,61 @@ export const useMangaStore = create<MangaStore>((set, get) => ({
       selectedElementId: element.id,
       history: { past: [...current.history.past, previous], future: [] },
       status: '集中線を追加しました'
+    }));
+  },
+
+  updatePanel: (panelId, patch) => {
+    const state = get();
+    const previous = cloneProject(state.project);
+    const page = activePage(previous);
+    const currentPanel = page.panels.find((panel) => panel.id === panelId);
+    if (!currentPanel) {
+      return;
+    }
+
+    const nextX = patch.x ?? currentPanel.x;
+    const nextY = patch.y ?? currentPanel.y;
+    const nextWidth = Math.max(80, patch.width ?? currentPanel.width);
+    const nextHeight = Math.max(80, patch.height ?? currentPanel.height);
+    const nextShape = (patch.shape ?? currentPanel.shape ?? 'rect') as PanelShape;
+    const dx = nextX - currentPanel.x;
+    const dy = nextY - currentPanel.y;
+
+    const project = updateActivePage(previous, (active) => ({
+      ...active,
+      panels: active.panels.map((panel) =>
+        panel.id === panelId
+          ? {
+              ...panel,
+              ...patch,
+              x: nextX,
+              y: nextY,
+              width: nextWidth,
+              height: nextHeight,
+              shape: nextShape
+            }
+          : panel
+      ),
+      elements:
+        dx !== 0 || dy !== 0
+          ? active.elements.map((element) =>
+              element.panelId === panelId && 'x' in element && 'y' in element
+                ? ({
+                    ...element,
+                    x: element.x + dx,
+                    y: element.y + dy
+                  } as MangaElement)
+                : element
+            )
+          : active.elements
+    }));
+
+    set((current) => ({
+      project,
+      selectedPanelId: panelId,
+      selectedElementId: null,
+      history: { past: [...current.history.past, previous], future: [] },
+      status: 'コマを更新しました'
     }));
   },
 
