@@ -237,9 +237,12 @@ export const useMangaStore = create<MangaStore>((set, get) => ({
       height,
       text: 'セリフ',
       fontSize: 38,
+      bubbleStyle: 'handDrawn',
       tailX: width * 0.58,
       tailY: height + 64,
       tailDirection: 'bottom',
+      strokeWidth: 3,
+      roughSeed: Math.floor(Math.random() * 100000),
       fill: '#ffffff',
       stroke: '#111827'
     };
@@ -277,7 +280,7 @@ export const useMangaStore = create<MangaStore>((set, get) => ({
       count: 72,
       innerRadius: Math.min(panel.width, panel.height) * 0.18,
       outerRadius: Math.max(panel.width, panel.height) * 0.9,
-      strokeWidth: 5,
+      strokeWidth: 3,
       seed: Math.floor(Math.random() * 100000),
       color: '#111827'
     };
@@ -309,6 +312,7 @@ export const useMangaStore = create<MangaStore>((set, get) => ({
     const nextWidth = Math.max(80, patch.width ?? currentPanel.width);
     const nextHeight = Math.max(80, patch.height ?? currentPanel.height);
     const nextShape = (patch.shape ?? currentPanel.shape ?? 'rect') as PanelShape;
+    const nextStrokeWidth = Math.max(1, patch.strokeWidth ?? currentPanel.strokeWidth ?? 3);
     const dx = nextX - currentPanel.x;
     const dy = nextY - currentPanel.y;
 
@@ -323,7 +327,8 @@ export const useMangaStore = create<MangaStore>((set, get) => ({
               y: nextY,
               width: nextWidth,
               height: nextHeight,
-              shape: nextShape
+              shape: nextShape,
+              strokeWidth: nextStrokeWidth
             }
           : panel
       ),

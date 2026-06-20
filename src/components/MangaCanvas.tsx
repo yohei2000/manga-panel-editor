@@ -145,6 +145,104 @@ function bubbleTailPoints(element: BubbleElement): number[] {
   return [element.width * 0.55, element.height * 0.78, element.tailX, element.tailY, element.width * 0.42, element.height * 0.82];
 }
 
+function hashString(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash || 1;
+}
+
+function seededRandom(seed: number): () => number {
+  let value = seed % 2147483647;
+  if (value <= 0) {
+    value += 2147483646;
+  }
+  return () => {
+    value = (value * 16807) % 2147483647;
+    return (value - 1) / 2147483646;
+  };
+}
+
+function bubbleBodyPoints(element: BubbleElement, variant: 'cloud' | 'handDrawn'): number[] {
+  const points: number[] = [];
+  const count = variant === 'cloud' ? 72 : 56;
+  const centerX = element.width / 2;
+  const centerY = element.height / 2;
+  const radiusX = element.width / 2;
+  const radiusY = element.height / 2;
+  const rand = seededRandom(element.roughSeed ?? hashString(element.id));
+
+  for (let index = 0; index < count; index += 1) {
+    const angle = (Math.PI * 2 * index) / count;
+    const lobe = variant === 'cloud' ? 1 + Math.sin(angle * 10) * 0.1 + Math.sin(angle * 5) * 0.035 : 1;
+    const rough = variant === 'handDrawn' ? 1 + (rand() - 0.5) * 0.12 : lobe;
+    points.push(centerX + Math.cos(angle) * radiusX * rough, centerY + Math.sin(angle) * radiusY * rough);
+  }
+
+  return points;
+}
+
+function BubbleBody({ element }: { element: BubbleElement }) {
+  const strokeWidth = element.strokeWidth ?? 3;
+  const style = element.bubbleStyle ?? 'ellipse';
+
+  if (style === 'rounded') {
+    return (
+      <Rect
+        x={0}
+        y={0}
+        width={element.width}
+        height={element.height}
+        cornerRadius={Math.min(42, element.width * 0.18, element.height * 0.28)}
+        fill={element.fill}
+        stroke={element.stroke}
+        strokeWidth={strokeWidth}
+      />
+    );
+  }
+
+  if (style === 'cloud' || style === 'handDrawn') {
+    const points = bubbleBodyPoints(element, style);
+    return (
+      <>
+        <Line
+          points={points}
+          closed
+          fill={element.fill}
+          stroke={element.stroke}
+          strokeWidth={strokeWidth}
+          tension={0.38}
+          lineJoin="round"
+        />
+        {style === 'handDrawn' && (
+          <Line
+            points={points.map((point, index) => point + (index % 2 === 0 ? 2 : -1))}
+            closed
+            stroke={element.stroke}
+            strokeWidth={Math.max(1, strokeWidth * 0.55)}
+            opacity={0.55}
+            tension={0.38}
+            lineJoin="round"
+          />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <Ellipse
+      x={element.width / 2}
+      y={element.height / 2}
+      radiusX={element.width / 2}
+      radiusY={element.height / 2}
+      fill={element.fill}
+      stroke={element.stroke}
+      strokeWidth={strokeWidth}
+    />
+  );
+}
+
 function ImageNode({ element, selected }: { element: ImageElement; selected: boolean }) {
   const image = useAssetImage(element.assetId);
   const updateElement = useMangaStore((state) => state.updateElement);
@@ -198,6 +296,7 @@ function BubbleNode({ element, selected }: { element: BubbleElement; selected: b
   const updateElement = useMangaStore((state) => state.updateElement);
   const selectElement = useMangaStore((state) => state.selectElement);
   const textPadding = Math.max(20, element.fontSize * 0.55);
+  const strokeWidth = element.strokeWidth ?? 3;
 
   return (
     <Group
@@ -224,18 +323,10 @@ function BubbleNode({ element, selected }: { element: BubbleElement; selected: b
         closed
         fill={element.fill}
         stroke={element.stroke}
-        strokeWidth={5}
+        strokeWidth={strokeWidth}
         lineJoin="round"
       />
-      <Ellipse
-        x={element.width / 2}
-        y={element.height / 2}
-        radiusX={element.width / 2}
-        radiusY={element.height / 2}
-        fill={element.fill}
-        stroke={element.stroke}
-        strokeWidth={5}
-      />
+      <BubbleBody element={element} />
       <Text
         x={textPadding}
         y={textPadding * 0.7}
@@ -255,7 +346,7 @@ function BubbleNode({ element, selected }: { element: BubbleElement; selected: b
           width={element.width + 16}
           height={element.height + 16}
           stroke="#0f766e"
-          strokeWidth={5}
+          strokeWidth={Math.max(3, strokeWidth + 2)}
           dash={[16, 10]}
           listening={false}
         />
@@ -267,7 +358,7 @@ function BubbleNode({ element, selected }: { element: BubbleElement; selected: b
           radius={14}
           fill="#ffffff"
           stroke="#0f766e"
-          strokeWidth={5}
+          strokeWidth={3}
           draggable
           onDragEnd={(event) => {
             updateElement<BubbleElement>(element.id, {
@@ -321,7 +412,7 @@ function FocusLinesNode({ element, selected }: { element: FocusLineElement; sele
         <Circle
           radius={Math.max(18, element.innerRadius)}
           stroke="#0f766e"
-          strokeWidth={5}
+          strokeWidth={4}
           dash={[14, 10]}
           listening={false}
         />
@@ -414,7 +505,8 @@ function PanelFill({ panel, onSelect }: { panel: Panel; onSelect: () => void }) 
 function PanelBorder({ panel, selected }: { panel: Panel; selected: boolean }) {
   const shape = panelShape(panel);
   const stroke = selected ? '#0f766e' : '#111827';
-  const strokeWidth = selected ? 8 : 5;
+  const baseStrokeWidth = panel.strokeWidth ?? 3;
+  const strokeWidth = selected ? baseStrokeWidth + 3 : baseStrokeWidth;
 
   if (shape === 'ellipse') {
     return (
@@ -466,7 +558,7 @@ function PanelResizeHandle({ panel }: { panel: Panel }) {
       height={36}
       fill="#ffffff"
       stroke="#0f766e"
-      strokeWidth={5}
+      strokeWidth={3}
       cornerRadius={6}
       draggable
       onDragEnd={(event) => {

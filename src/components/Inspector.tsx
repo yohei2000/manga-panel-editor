@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useMangaStore } from '../store/useMangaStore';
-import type { BubbleElement, BubbleTailDirection, FocusLineElement, ImageElement, MangaElement, Panel, PanelShape } from '../types/manga';
+import type { BubbleElement, BubbleStyle, BubbleTailDirection, FocusLineElement, ImageElement, MangaElement, Panel, PanelShape } from '../types/manga';
 
 function NumberField({ label, value, onChange, min, max, step = 1 }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; step?: number }) {
   return (
@@ -65,6 +65,13 @@ const bubbleTailDirectionOptions: Array<{ value: BubbleTailDirection; label: str
   { value: 'right', label: '右' }
 ];
 
+const bubbleStyleOptions: Array<{ value: BubbleStyle; label: string }> = [
+  { value: 'handDrawn', label: '手書き' },
+  { value: 'ellipse', label: '楕円' },
+  { value: 'rounded', label: '角丸' },
+  { value: 'cloud', label: 'もこもこ' }
+];
+
 function bubbleTailPreset(element: BubbleElement, tailDirection: BubbleTailDirection): Pick<BubbleElement, 'tailDirection' | 'tailX' | 'tailY'> {
   if (tailDirection === 'top') {
     return { tailDirection, tailX: element.width * 0.42, tailY: -64 };
@@ -114,6 +121,13 @@ function BubbleInspector({ element }: { element: BubbleElement }) {
         <NumberField label="高さ" value={element.height} min={40} onChange={(height) => updateElement<BubbleElement>(element.id, { height })} />
         <NumberField label="文字" value={element.fontSize} min={8} onChange={(fontSize) => updateElement<BubbleElement>(element.id, { fontSize })} />
         <SelectField
+          label="スタイル"
+          value={element.bubbleStyle ?? 'ellipse'}
+          options={bubbleStyleOptions}
+          onChange={(bubbleStyle) => updateElement<BubbleElement>(element.id, { bubbleStyle })}
+        />
+        <NumberField label="線幅" value={element.strokeWidth ?? 3} min={1} max={16} step={0.5} onChange={(strokeWidth) => updateElement<BubbleElement>(element.id, { strokeWidth })} />
+        <SelectField
           label="しっぽ方向"
           value={element.tailDirection ?? 'bottom'}
           options={bubbleTailDirectionOptions}
@@ -152,6 +166,7 @@ function PanelInspector({ panel }: { panel: Panel }) {
       <NumberField label="Y" value={panel.y} min={0} onChange={(y) => updatePanel(panel.id, { y })} />
       <NumberField label="幅" value={panel.width} min={80} onChange={(width) => updatePanel(panel.id, { width })} />
       <NumberField label="高さ" value={panel.height} min={80} onChange={(height) => updatePanel(panel.id, { height })} />
+      <NumberField label="線幅" value={panel.strokeWidth ?? 3} min={1} max={16} step={0.5} onChange={(strokeWidth) => updatePanel(panel.id, { strokeWidth })} />
       <SelectField
         label="形"
         value={panel.shape ?? 'rect'}

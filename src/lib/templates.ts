@@ -17,7 +17,8 @@ const panel = (name: string, x: number, y: number, width: number, height: number
   y,
   width,
   height,
-  shape: 'rect'
+  shape: 'rect',
+  strokeWidth: 3
 });
 
 export const templateLabels: Record<TemplateId, string> = {
