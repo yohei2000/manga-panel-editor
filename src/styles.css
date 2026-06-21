@@ -49,7 +49,7 @@ button:disabled {
 
 .appShell {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -128,6 +128,25 @@ button:disabled {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr) 340px;
   min-height: 0;
+}
+
+.modeTabs {
+  display: flex;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #d8dee9;
+  background: #ffffff;
+}
+
+.modeTabs button {
+  min-width: 128px;
+  font-weight: 800;
+}
+
+.modeTabs .isActive {
+  border-color: #111827;
+  background: #111827;
+  color: #ffffff;
 }
 
 .assetPanel,
@@ -300,9 +319,112 @@ button:disabled {
   font-weight: 700;
 }
 
+.namePlanner {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr) 360px;
+  min-height: 0;
+  background: #eef2f7;
+}
+
+.namePanel {
+  min-width: 0;
+  padding: 16px;
+  overflow: auto;
+  border-right: 1px solid #d8dee9;
+  background: #ffffff;
+}
+
+.namePanel:last-child {
+  border-right: 0;
+  border-left: 1px solid #d8dee9;
+}
+
+.namePanel h3 {
+  margin: 18px 0 10px;
+  font-size: 15px;
+}
+
+.namePanel .field {
+  margin-bottom: 12px;
+}
+
+.nameStageWrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.nameStage3d {
+  position: absolute;
+  inset: 0;
+}
+
+.nameStage3d canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.nameBubbleLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.nameBubble {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  border: 3px solid #111827;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+  pointer-events: auto;
+  box-shadow: 0 0 0 0 transparent;
+}
+
+.nameBubble.isSelected {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.18);
+}
+
+.nameList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.nameList button {
+  min-height: 38px;
+}
+
+.nameList .isSelected {
+  border-color: #0f766e;
+  background: #ecfdf5;
+}
+
+.exportButtons {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 @media (max-width: 1180px) {
   .workspace {
     grid-template-columns: 200px minmax(0, 1fr) 300px;
+  }
+
+  .namePlanner {
+    grid-template-columns: 280px minmax(0, 1fr) 320px;
   }
 
   .toolbar {
@@ -323,6 +445,23 @@ button:disabled {
   .workspace {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(520px, 1fr) auto;
+  }
+
+  .namePlanner {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(560px, 70vh) auto;
+    overflow: auto;
+  }
+
+  .namePanel,
+  .namePanel:last-child {
+    border-right: 0;
+    border-left: 0;
+    border-bottom: 1px solid #d8dee9;
+  }
+
+  .nameStageWrap {
+    min-height: 560px;
   }
 
   .assetPanel {
