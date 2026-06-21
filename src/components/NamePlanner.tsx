@@ -34,10 +34,16 @@ const cameraLabels: Record<NameCameraPreset, string> = {
 
 const poseLabels: Record<NameActorPose, string> = {
   standing: '立ち',
+  contrapposto: '重心立ち',
   talking: '会話',
   pointing: '指差し',
   thinking: '考える',
-  sitting: '座り'
+  sitting: '座り',
+  walking: '歩き',
+  running: '走り',
+  lookingBack: '振り返り',
+  reaching: '手を伸ばす',
+  surprised: '驚き'
 };
 
 const defaultScene = (): NameScene => ({
@@ -75,58 +81,220 @@ function clearGroup(group: THREE.Group) {
   }
 }
 
-function createLimb(length: number, radius: number, material: THREE.Material) {
-  const limb = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, 14), material);
-  limb.castShadow = true;
-  limb.receiveShadow = true;
-  return limb;
+function deg(value: number) {
+  return THREE.MathUtils.degToRad(value);
+}
+
+function setRotation(object: THREE.Object3D | undefined, x = 0, y = 0, z = 0) {
+  if (!object) {
+    return;
+  }
+  object.rotation.set(deg(x), deg(y), deg(z));
+}
+
+function createCapsule(length: number, radius: number, material: THREE.Material) {
+  const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(radius, length, 8, 18), material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function createJointSphere(radius: number, material: THREE.Material) {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 18, 12), material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function createLimbRig(
+  side: 'left' | 'right',
+  limb: 'Arm' | 'Leg',
+  upperLength: number,
+  lowerLength: number,
+  radius: number,
+  material: THREE.Material,
+  jointMaterial: THREE.Material
+) {
+  const upper = new THREE.Group();
+  upper.name = `${side}Upper${limb}`;
+
+  const upperMesh = createCapsule(upperLength, radius, material);
+  upperMesh.position.y = -upperLength / 2;
+  upper.add(upperMesh);
+
+  const middleJoint = createJointSphere(radius * 1.15, jointMaterial);
+  middleJoint.position.y = -upperLength;
+  upper.add(middleJoint);
+
+  const lower = new THREE.Group();
+  lower.name = `${side}Lower${limb}`;
+  lower.position.y = -upperLength;
+  const lowerMesh = createCapsule(lowerLength, radius * 0.92, material);
+  lowerMesh.position.y = -lowerLength / 2;
+  lower.add(lowerMesh);
+  upper.add(lower);
+
+  const end = createJointSphere(radius * 1.05, jointMaterial);
+  end.name = `${side}${limb === 'Arm' ? 'Hand' : 'Foot'}`;
+  end.position.y = -lowerLength;
+  lower.add(end);
+
+  if (limb === 'Leg') {
+    end.scale.set(1.8, 0.5, 2.6);
+    end.position.z = 0.05;
+  }
+
+  return upper;
 }
 
 function applyPose(group: THREE.Group, actor: NameActor) {
-  const leftArm = group.getObjectByName('leftArm') as THREE.Mesh | undefined;
-  const rightArm = group.getObjectByName('rightArm') as THREE.Mesh | undefined;
-  const leftLeg = group.getObjectByName('leftLeg') as THREE.Mesh | undefined;
-  const rightLeg = group.getObjectByName('rightLeg') as THREE.Mesh | undefined;
+  const root = group.getObjectByName('actorRoot') as THREE.Group | undefined;
+  const chest = group.getObjectByName('chest') as THREE.Mesh | undefined;
+  const pelvis = group.getObjectByName('pelvis') as THREE.Mesh | undefined;
+  const neck = group.getObjectByName('neckRig') as THREE.Group | undefined;
   const head = group.getObjectByName('head') as THREE.Mesh | undefined;
+  const leftUpperArm = group.getObjectByName('leftUpperArm') as THREE.Group | undefined;
+  const leftLowerArm = group.getObjectByName('leftLowerArm') as THREE.Group | undefined;
+  const rightUpperArm = group.getObjectByName('rightUpperArm') as THREE.Group | undefined;
+  const rightLowerArm = group.getObjectByName('rightLowerArm') as THREE.Group | undefined;
+  const leftUpperLeg = group.getObjectByName('leftUpperLeg') as THREE.Group | undefined;
+  const leftLowerLeg = group.getObjectByName('leftLowerLeg') as THREE.Group | undefined;
+  const rightUpperLeg = group.getObjectByName('rightUpperLeg') as THREE.Group | undefined;
+  const rightLowerLeg = group.getObjectByName('rightLowerLeg') as THREE.Group | undefined;
 
-  if (!leftArm || !rightArm || !leftLeg || !rightLeg || !head) {
+  if (
+    !root ||
+    !chest ||
+    !pelvis ||
+    !neck ||
+    !head ||
+    !leftUpperArm ||
+    !leftLowerArm ||
+    !rightUpperArm ||
+    !rightLowerArm ||
+    !leftUpperLeg ||
+    !leftLowerLeg ||
+    !rightUpperLeg ||
+    !rightLowerLeg
+  ) {
     return;
   }
 
-  leftArm.rotation.z = -0.25;
-  rightArm.rotation.z = 0.25;
-  leftArm.rotation.x = 0;
-  rightArm.rotation.x = 0;
-  leftLeg.rotation.z = 0.12;
-  rightLeg.rotation.z = -0.12;
-  leftLeg.rotation.x = 0;
-  rightLeg.rotation.x = 0;
-  head.rotation.z = 0;
+  root.position.y = 0;
+  setRotation(chest, 0, 0, 0);
+  setRotation(pelvis, 0, 0, 0);
+  setRotation(neck, 0, 0, 0);
+  setRotation(head, 0, 0, 0);
+  setRotation(leftUpperArm, 2, 0, -12);
+  setRotation(leftLowerArm, 0, 0, -8);
+  setRotation(rightUpperArm, 2, 0, 12);
+  setRotation(rightLowerArm, 0, 0, 8);
+  setRotation(leftUpperLeg, 0, 0, -4);
+  setRotation(leftLowerLeg, 0, 0, 2);
+  setRotation(rightUpperLeg, 0, 0, 4);
+  setRotation(rightLowerLeg, 0, 0, -2);
+
+  if (actor.pose === 'contrapposto') {
+    setRotation(chest, 0, -6, -5);
+    setRotation(pelvis, 0, 8, 6);
+    setRotation(neck, 0, 8, 3);
+    setRotation(leftUpperLeg, -2, 0, -8);
+    setRotation(rightUpperLeg, 7, 0, 8);
+    setRotation(rightLowerLeg, -8, 0, -4);
+  }
 
   if (actor.pose === 'talking') {
-    rightArm.rotation.z = -1.1;
-    rightArm.rotation.x = -0.25;
-    head.rotation.z = -0.08;
+    setRotation(chest, -2, -8, -2);
+    setRotation(neck, 0, -12, -4);
+    setRotation(rightUpperArm, -22, 0, 78);
+    setRotation(rightLowerArm, -8, 0, -56);
+    setRotation(leftUpperArm, 6, 0, -18);
   }
 
   if (actor.pose === 'pointing') {
-    rightArm.rotation.z = -1.45;
-    rightArm.rotation.x = -0.45;
-    leftArm.rotation.z = -0.2;
+    setRotation(chest, -4, -14, -3);
+    setRotation(neck, 0, -18, -2);
+    setRotation(rightUpperArm, -78, 2, 86);
+    setRotation(rightLowerArm, -4, 0, 6);
+    setRotation(leftUpperArm, 4, 0, -18);
   }
 
   if (actor.pose === 'thinking') {
-    rightArm.rotation.z = -0.95;
-    rightArm.rotation.x = -0.75;
-    head.rotation.z = 0.12;
+    setRotation(chest, 4, 8, 3);
+    setRotation(neck, 8, 10, 8);
+    setRotation(rightUpperArm, -16, 0, 70);
+    setRotation(rightLowerArm, -18, 0, 88);
+    setRotation(leftUpperArm, 4, 0, -16);
   }
 
   if (actor.pose === 'sitting') {
-    leftLeg.rotation.x = 1.2;
-    rightLeg.rotation.x = 1.2;
-    leftArm.rotation.z = -0.45;
-    rightArm.rotation.z = 0.45;
-    group.position.y = -0.22;
+    root.position.y = -0.32;
+    setRotation(chest, 7, 0, 0);
+    setRotation(leftUpperArm, 14, 0, -20);
+    setRotation(rightUpperArm, 14, 0, 20);
+    setRotation(leftUpperLeg, 72, 0, -6);
+    setRotation(leftLowerLeg, -76, 0, 0);
+    setRotation(rightUpperLeg, 72, 0, 6);
+    setRotation(rightLowerLeg, -76, 0, 0);
+  }
+
+  if (actor.pose === 'walking') {
+    setRotation(chest, -2, -4, 2);
+    setRotation(leftUpperArm, 24, 0, -16);
+    setRotation(leftLowerArm, -12, 0, -4);
+    setRotation(rightUpperArm, -28, 0, 14);
+    setRotation(rightLowerArm, -12, 0, 8);
+    setRotation(leftUpperLeg, -28, 0, -5);
+    setRotation(leftLowerLeg, 34, 0, 2);
+    setRotation(rightUpperLeg, 28, 0, 6);
+    setRotation(rightLowerLeg, -22, 0, -3);
+  }
+
+  if (actor.pose === 'running') {
+    root.position.y = 0.08;
+    setRotation(chest, -14, -8, 4);
+    setRotation(neck, 10, 6, -3);
+    setRotation(leftUpperArm, 58, 0, -30);
+    setRotation(leftLowerArm, -82, 0, -10);
+    setRotation(rightUpperArm, -68, 0, 24);
+    setRotation(rightLowerArm, -82, 0, 14);
+    setRotation(leftUpperLeg, -62, 0, -8);
+    setRotation(leftLowerLeg, 78, 0, 5);
+    setRotation(rightUpperLeg, 54, 0, 10);
+    setRotation(rightLowerLeg, -78, 0, -6);
+  }
+
+  if (actor.pose === 'lookingBack') {
+    setRotation(chest, 0, 24, -3);
+    setRotation(pelvis, 0, -10, 4);
+    setRotation(neck, 0, 54, -6);
+    setRotation(head, 0, 16, 0);
+    setRotation(leftUpperArm, 6, 0, -24);
+    setRotation(rightUpperArm, 8, 0, 18);
+    setRotation(leftUpperLeg, -8, 0, -4);
+    setRotation(rightUpperLeg, 8, 0, 5);
+  }
+
+  if (actor.pose === 'reaching') {
+    setRotation(chest, -8, -8, -5);
+    setRotation(neck, -4, -8, -2);
+    setRotation(rightUpperArm, -100, 0, 132);
+    setRotation(rightLowerArm, -8, 0, 14);
+    setRotation(leftUpperArm, -38, 0, -28);
+    setRotation(leftLowerArm, -18, 0, -12);
+    setRotation(leftUpperLeg, -10, 0, -4);
+    setRotation(rightUpperLeg, 14, 0, 6);
+  }
+
+  if (actor.pose === 'surprised') {
+    setRotation(chest, -4, 0, 0);
+    setRotation(neck, -7, 0, 0);
+    setRotation(leftUpperArm, -42, 0, -108);
+    setRotation(leftLowerArm, -14, 0, -22);
+    setRotation(rightUpperArm, -42, 0, 108);
+    setRotation(rightLowerArm, -14, 0, 22);
+    setRotation(leftUpperLeg, 4, 0, -8);
+    setRotation(rightUpperLeg, 4, 0, 8);
   }
 }
 
@@ -137,49 +305,84 @@ function createActor(actor: NameActor, selected: boolean) {
   group.scale.setScalar(actor.scale);
   group.userData.actorId = actor.id;
 
-  const ink = new THREE.MeshStandardMaterial({ color: selected ? '#0f766e' : '#1f2937', roughness: 0.8 });
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.34, 1, 20), ink);
-  body.position.y = 1.15;
-  body.castShadow = true;
-  body.receiveShadow = true;
-  group.add(body);
+  const root = new THREE.Group();
+  root.name = 'actorRoot';
+  group.add(root);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 24, 16), ink);
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: selected ? '#d8c09c' : '#d5c0a3',
+    metalness: 0.02,
+    roughness: 0.74
+  });
+  const jointMaterial = new THREE.MeshStandardMaterial({
+    color: selected ? '#0f766e' : '#475569',
+    metalness: 0.05,
+    roughness: 0.68
+  });
+
+  const pelvis = createCapsule(0.2, 0.17, bodyMaterial);
+  pelvis.name = 'pelvis';
+  pelvis.position.set(0, 1.55, 0);
+  pelvis.scale.set(1.38, 0.58, 0.72);
+  root.add(pelvis);
+
+  const abdomen = createCapsule(0.5, 0.15, bodyMaterial);
+  abdomen.name = 'abdomen';
+  abdomen.position.set(0, 1.88, 0);
+  abdomen.scale.set(0.96, 1, 0.68);
+  root.add(abdomen);
+
+  const chest = createCapsule(0.6, 0.19, bodyMaterial);
+  chest.name = 'chest';
+  chest.position.set(0, 2.3, 0);
+  chest.scale.set(1.32, 1, 0.72);
+  root.add(chest);
+
+  const shoulderBar = createCapsule(0.56, 0.055, jointMaterial);
+  shoulderBar.position.set(0, 2.56, 0);
+  shoulderBar.rotation.z = Math.PI / 2;
+  shoulderBar.scale.set(1, 1, 0.85);
+  root.add(shoulderBar);
+
+  const neckRig = new THREE.Group();
+  neckRig.name = 'neckRig';
+  neckRig.position.set(0, 2.74, 0);
+  root.add(neckRig);
+
+  const neckMesh = createCapsule(0.16, 0.07, bodyMaterial);
+  neckMesh.position.y = 0;
+  neckRig.add(neckMesh);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.165, 24, 18), bodyMaterial);
   head.name = 'head';
-  head.position.y = 1.86;
+  head.position.y = 0.28;
+  head.scale.set(0.84, 1.14, 0.78);
   head.castShadow = true;
-  group.add(head);
+  head.receiveShadow = true;
+  neckRig.add(head);
 
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.18, 12), ink);
-  neck.position.y = 1.62;
-  group.add(neck);
+  const faceMarker = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 8), jointMaterial);
+  faceMarker.position.set(0, 0.31, 0.15);
+  neckRig.add(faceMarker);
 
-  const leftArm = createLimb(0.78, 0.075, ink);
-  leftArm.name = 'leftArm';
-  leftArm.position.set(-0.36, 1.18, 0);
-  leftArm.rotation.z = -0.25;
-  group.add(leftArm);
+  const leftArm = createLimbRig('left', 'Arm', 0.58, 0.54, 0.05, bodyMaterial, jointMaterial);
+  leftArm.position.set(-0.36, 2.52, 0);
+  root.add(leftArm);
 
-  const rightArm = createLimb(0.78, 0.075, ink);
-  rightArm.name = 'rightArm';
-  rightArm.position.set(0.36, 1.18, 0);
-  rightArm.rotation.z = 0.25;
-  group.add(rightArm);
+  const rightArm = createLimbRig('right', 'Arm', 0.58, 0.54, 0.05, bodyMaterial, jointMaterial);
+  rightArm.position.set(0.36, 2.52, 0);
+  root.add(rightArm);
 
-  const leftLeg = createLimb(0.92, 0.09, ink);
-  leftLeg.name = 'leftLeg';
-  leftLeg.position.set(-0.15, 0.42, 0);
-  leftLeg.rotation.z = 0.12;
-  group.add(leftLeg);
+  const leftLeg = createLimbRig('left', 'Leg', 0.78, 0.74, 0.065, bodyMaterial, jointMaterial);
+  leftLeg.position.set(-0.16, 1.5, 0);
+  root.add(leftLeg);
 
-  const rightLeg = createLimb(0.92, 0.09, ink);
-  rightLeg.name = 'rightLeg';
-  rightLeg.position.set(0.15, 0.42, 0);
-  rightLeg.rotation.z = -0.12;
-  group.add(rightLeg);
+  const rightLeg = createLimbRig('right', 'Leg', 0.78, 0.74, 0.065, bodyMaterial, jointMaterial);
+  rightLeg.position.set(0.16, 1.5, 0);
+  root.add(rightLeg);
 
   const marker = new THREE.Mesh(
-    new THREE.RingGeometry(0.46, 0.5, 40),
+    new THREE.RingGeometry(0.42, 0.46, 48),
     new THREE.MeshBasicMaterial({ color: '#0f766e', transparent: true, opacity: selected ? 1 : 0 })
   );
   marker.rotation.x = -Math.PI / 2;
@@ -194,13 +397,13 @@ function createActor(actor: NameActor, selected: boolean) {
 }
 
 function setCamera(camera: THREE.PerspectiveCamera, controls: OrbitControls, preset: NameCameraPreset) {
-  const target = new THREE.Vector3(0, 1.15, 0);
+  const target = new THREE.Vector3(0, 2.0, 0);
   const positions: Record<NameCameraPreset, [number, number, number]> = {
-    wide: [0, 2.4, 5.8],
-    close: [0, 1.9, 3.5],
-    low: [0, 0.85, 4.4],
-    high: [0, 5.2, 4.2],
-    overShoulder: [2.5, 2.0, 3.3]
+    wide: [0, 3.15, 7.0],
+    close: [0, 2.75, 4.8],
+    low: [0, 1.25, 5.4],
+    high: [0, 6.4, 5.1],
+    overShoulder: [2.9, 2.75, 4.2]
   };
   const position = positions[preset];
   camera.position.set(position[0], position[1], position[2]);
@@ -652,6 +855,21 @@ export function NamePlanner() {
                 ))}
               </select>
             </Field>
+            <div className="fieldFull">
+              <span className="fieldLabel">ポーズプリセット</span>
+              <div className="posePresetGrid">
+                {Object.entries(poseLabels).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={selectedActor.pose === value ? 'isSelected' : ''}
+                    onClick={() => updateActor(selectedActor.id, { pose: value as NameActorPose })}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <NumberInput label="X" value={selectedActor.x} min={-3} max={3} onChange={(x) => updateActor(selectedActor.id, { x })} />
             <NumberInput label="奥行" value={selectedActor.z} min={-2} max={2} onChange={(z) => updateActor(selectedActor.id, { z })} />
             <NumberInput label="向き" value={selectedActor.rotationY} min={-180} max={180} step={5} onChange={(rotationY) => updateActor(selectedActor.id, { rotationY })} />

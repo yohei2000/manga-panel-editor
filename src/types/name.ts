@@ -1,5 +1,16 @@
 export type NameCameraPreset = 'wide' | 'close' | 'low' | 'high' | 'overShoulder';
-export type NameActorPose = 'standing' | 'talking' | 'pointing' | 'thinking' | 'sitting';
+export type NameActorPose =
+  | 'standing'
+  | 'contrapposto'
+  | 'talking'
+  | 'pointing'
+  | 'thinking'
+  | 'sitting'
+  | 'walking'
+  | 'running'
+  | 'lookingBack'
+  | 'reaching'
+  | 'surprised';
 
 export interface NameActor {
   id: string;

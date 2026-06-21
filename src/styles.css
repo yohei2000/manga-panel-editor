@@ -286,10 +286,12 @@ button:disabled {
 }
 
 .fieldFull {
+  grid-column: 1 / -1;
   margin-bottom: 12px;
 }
 
 .field span,
+.fieldLabel,
 .readOnlyGrid span {
   color: #64748b;
   font-size: 12px;
@@ -425,6 +427,26 @@ button:disabled {
 .nameList .isSelected {
   border-color: #0f766e;
   background: #ecfdf5;
+}
+
+.posePresetGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.posePresetGrid button {
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.posePresetGrid .isSelected {
+  border-color: #0f766e;
+  background: #ecfdf5;
+  color: #0f766e;
 }
 
 .exportButtons {
