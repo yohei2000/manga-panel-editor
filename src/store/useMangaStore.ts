@@ -237,7 +237,7 @@ export const useMangaStore = create<MangaStore>((set, get) => ({
       height,
       text: 'セリフ',
       fontSize: 38,
-      bubbleStyle: 'handDrawn',
+      bubbleStyle: 'manga',
       tailX: width * 0.58,
       tailY: height + 64,
       tailDirection: 'bottom',

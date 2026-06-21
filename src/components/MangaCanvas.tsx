@@ -164,20 +164,29 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-function bubbleBodyPoints(element: BubbleElement, variant: 'cloud' | 'handDrawn'): number[] {
+function bubbleBodyPoints(element: BubbleElement, variant: 'cloud' | 'manga' | 'burst'): number[] {
   const points: number[] = [];
-  const count = variant === 'cloud' ? 72 : 56;
+  const count = variant === 'burst' ? 44 : 96;
   const centerX = element.width / 2;
   const centerY = element.height / 2;
   const radiusX = element.width / 2;
   const radiusY = element.height / 2;
   const rand = seededRandom(element.roughSeed ?? hashString(element.id));
+  const phaseA = rand() * Math.PI * 2;
+  const phaseB = rand() * Math.PI * 2;
+  const phaseC = rand() * Math.PI * 2;
 
   for (let index = 0; index < count; index += 1) {
     const angle = (Math.PI * 2 * index) / count;
-    const lobe = variant === 'cloud' ? 1 + Math.sin(angle * 10) * 0.1 + Math.sin(angle * 5) * 0.035 : 1;
-    const rough = variant === 'handDrawn' ? 1 + (rand() - 0.5) * 0.12 : lobe;
-    points.push(centerX + Math.cos(angle) * radiusX * rough, centerY + Math.sin(angle) * radiusY * rough);
+    const cloud = 1 + Math.sin(angle * 10) * 0.105 + Math.sin(angle * 5 + phaseA) * 0.035;
+    const manga =
+      1 +
+      Math.sin(angle * 2 + phaseA) * 0.024 +
+      Math.sin(angle * 5 + phaseB) * 0.016 +
+      Math.sin(angle * 7 + phaseC) * 0.009;
+    const burst = index % 2 === 0 ? 1 : 0.69 + Math.sin(angle * 3 + phaseA) * 0.06;
+    const scale = variant === 'cloud' ? cloud : variant === 'burst' ? burst : manga;
+    points.push(centerX + Math.cos(angle) * radiusX * scale, centerY + Math.sin(angle) * radiusY * scale);
   }
 
   return points;
@@ -185,7 +194,7 @@ function bubbleBodyPoints(element: BubbleElement, variant: 'cloud' | 'handDrawn'
 
 function BubbleBody({ element }: { element: BubbleElement }) {
   const strokeWidth = element.strokeWidth ?? 3;
-  const style = element.bubbleStyle ?? 'ellipse';
+  const style = (element.bubbleStyle as string | undefined) === 'handDrawn' ? 'manga' : element.bubbleStyle ?? 'ellipse';
 
   if (style === 'rounded') {
     return (
@@ -202,7 +211,7 @@ function BubbleBody({ element }: { element: BubbleElement }) {
     );
   }
 
-  if (style === 'cloud' || style === 'handDrawn') {
+  if (style === 'cloud' || style === 'manga' || style === 'burst') {
     const points = bubbleBodyPoints(element, style);
     return (
       <>
@@ -212,17 +221,17 @@ function BubbleBody({ element }: { element: BubbleElement }) {
           fill={element.fill}
           stroke={element.stroke}
           strokeWidth={strokeWidth}
-          tension={0.38}
-          lineJoin="round"
+          tension={style === 'burst' ? 0 : 0.42}
+          lineJoin={style === 'burst' ? 'miter' : 'round'}
         />
-        {style === 'handDrawn' && (
+        {style === 'manga' && (
           <Line
-            points={points.map((point, index) => point + (index % 2 === 0 ? 2 : -1))}
+            points={points.map((point, index) => point + (index % 2 === 0 ? 1.6 : -1.2))}
             closed
             stroke={element.stroke}
-            strokeWidth={Math.max(1, strokeWidth * 0.55)}
-            opacity={0.55}
-            tension={0.38}
+            strokeWidth={Math.max(1, strokeWidth * 0.42)}
+            opacity={0.42}
+            tension={0.42}
             lineJoin="round"
           />
         )}

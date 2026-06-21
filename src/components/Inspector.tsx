@@ -66,10 +66,11 @@ const bubbleTailDirectionOptions: Array<{ value: BubbleTailDirection; label: str
 ];
 
 const bubbleStyleOptions: Array<{ value: BubbleStyle; label: string }> = [
-  { value: 'handDrawn', label: '手書き' },
-  { value: 'ellipse', label: '楕円' },
+  { value: 'manga', label: '漫画手描き' },
+  { value: 'ellipse', label: '丸' },
   { value: 'rounded', label: '角丸' },
-  { value: 'cloud', label: 'もこもこ' }
+  { value: 'cloud', label: '思考' },
+  { value: 'burst', label: '叫び' }
 ];
 
 function bubbleTailPreset(element: BubbleElement, tailDirection: BubbleTailDirection): Pick<BubbleElement, 'tailDirection' | 'tailX' | 'tailY'> {
@@ -83,6 +84,13 @@ function bubbleTailPreset(element: BubbleElement, tailDirection: BubbleTailDirec
     return { tailDirection, tailX: element.width + 64, tailY: element.height * 0.44 };
   }
   return { tailDirection, tailX: element.width * 0.58, tailY: element.height + 64 };
+}
+
+function normalizedBubbleStyle(style: BubbleElement['bubbleStyle'] | string | undefined): BubbleStyle {
+  if (style === 'handDrawn') {
+    return 'manga';
+  }
+  return (style as BubbleStyle | undefined) ?? 'ellipse';
 }
 
 function ImageInspector({ element }: { element: ImageElement }) {
@@ -122,7 +130,7 @@ function BubbleInspector({ element }: { element: BubbleElement }) {
         <NumberField label="文字" value={element.fontSize} min={8} onChange={(fontSize) => updateElement<BubbleElement>(element.id, { fontSize })} />
         <SelectField
           label="スタイル"
-          value={element.bubbleStyle ?? 'ellipse'}
+          value={normalizedBubbleStyle(element.bubbleStyle)}
           options={bubbleStyleOptions}
           onChange={(bubbleStyle) => updateElement<BubbleElement>(element.id, { bubbleStyle })}
         />

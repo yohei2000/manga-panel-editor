@@ -4,7 +4,7 @@ export const PAGE_HEIGHT = 1536;
 export type TemplateId = 'twoVertical' | 'fourStrip' | 'fourGrid';
 export type PanelShape = 'rect' | 'ellipse' | 'slantLeft' | 'slantRight';
 export type BubbleTailDirection = 'bottom' | 'top' | 'left' | 'right';
-export type BubbleStyle = 'ellipse' | 'rounded' | 'cloud' | 'handDrawn';
+export type BubbleStyle = 'manga' | 'ellipse' | 'rounded' | 'cloud' | 'burst';
 
 export interface MangaProject {
   id: string;
