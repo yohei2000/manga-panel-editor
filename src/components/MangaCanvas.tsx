@@ -145,6 +145,10 @@ function bubbleTailPoints(element: BubbleElement): number[] {
   return [element.width * 0.55, element.height * 0.78, element.tailX, element.tailY, element.width * 0.42, element.height * 0.82];
 }
 
+function normalizedBubbleStyleForCanvas(element: BubbleElement) {
+  return (element.bubbleStyle as string | undefined) === 'handDrawn' ? 'manga' : element.bubbleStyle ?? 'ellipse';
+}
+
 function hashString(value: string): number {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -162,6 +166,15 @@ function seededRandom(seed: number): () => number {
     value = (value * 16807) % 2147483647;
     return (value - 1) / 2147483646;
   };
+}
+
+function smoothNoise(angle: number, seed: number): number {
+  return (
+    Math.sin(angle * 1.7 + seed * 0.017) * 0.44 +
+    Math.sin(angle * 3.1 + seed * 0.031) * 0.31 +
+    Math.sin(angle * 5.3 + seed * 0.047) * 0.18 +
+    Math.sin(angle * 8.9 + seed * 0.011) * 0.07
+  );
 }
 
 function bubbleBodyPoints(element: BubbleElement, variant: 'cloud' | 'manga' | 'burst'): number[] {
@@ -192,8 +205,84 @@ function bubbleBodyPoints(element: BubbleElement, variant: 'cloud' | 'manga' | '
   return points;
 }
 
+function splitPoints(points: number[]): Array<[number, number]> {
+  const pairs: Array<[number, number]> = [];
+  for (let index = 0; index < points.length; index += 2) {
+    pairs.push([points[index], points[index + 1]]);
+  }
+  return pairs;
+}
+
+function taperedLineWidth(base: number, variance: number, index: number, total: number, seed: number): number {
+  const progress = total <= 1 ? 0 : index / total;
+  const angle = progress * Math.PI * 2;
+  const pressure = 1 + smoothNoise(angle, seed) * variance;
+  const taper = 0.88 + Math.sin(angle * 2 + seed * 0.003) * 0.08;
+  return Math.max(0.75, base * pressure * taper);
+}
+
+function InkOutline({
+  points,
+  stroke,
+  baseWidth,
+  variance,
+  seed,
+  closed = true,
+  angular = false
+}: {
+  points: number[];
+  stroke: string;
+  baseWidth: number;
+  variance: number;
+  seed: number;
+  closed?: boolean;
+  angular?: boolean;
+}) {
+  const pairs = splitPoints(points);
+  const total = closed ? pairs.length : pairs.length - 1;
+
+  return (
+    <>
+      {Array.from({ length: total }, (_, index) => {
+        const current = pairs[index];
+        const next = pairs[(index + 1) % pairs.length];
+        const width = taperedLineWidth(baseWidth, variance, index, total, seed);
+        return (
+          <Line
+            key={`${seed}-${index}`}
+            points={[current[0], current[1], next[0], next[1]]}
+            stroke={stroke}
+            strokeWidth={width}
+            lineCap="round"
+            lineJoin={angular ? 'miter' : 'round'}
+            tension={angular ? 0 : 0.35}
+            opacity={0.96}
+            listening={false}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function filledTailPoints(element: BubbleElement): number[] {
+  const direction = element.tailDirection ?? 'bottom';
+  const points = bubbleTailPoints(element);
+  if (direction === 'top') {
+    return [points[0], points[1] + 2, points[2], points[3], points[4], points[5] + 2];
+  }
+  if (direction === 'left') {
+    return [points[0] + 2, points[1], points[2], points[3], points[4] + 2, points[5]];
+  }
+  if (direction === 'right') {
+    return [points[0] - 2, points[1], points[2], points[3], points[4] - 2, points[5]];
+  }
+  return [points[0], points[1] - 2, points[2], points[3], points[4], points[5] - 2];
+}
+
 function BubbleBody({ element }: { element: BubbleElement }) {
   const strokeWidth = element.strokeWidth ?? 3;
+  const variance = element.strokeVariance ?? 0.55;
   const style = (element.bubbleStyle as string | undefined) === 'handDrawn' ? 'manga' : element.bubbleStyle ?? 'ellipse';
 
   if (style === 'rounded') {
@@ -213,28 +302,32 @@ function BubbleBody({ element }: { element: BubbleElement }) {
 
   if (style === 'cloud' || style === 'manga' || style === 'burst') {
     const points = bubbleBodyPoints(element, style);
+    const seed = element.roughSeed ?? hashString(element.id);
     return (
       <>
         <Line
           points={points}
           closed
           fill={element.fill}
-          stroke={element.stroke}
-          strokeWidth={strokeWidth}
           tension={style === 'burst' ? 0 : 0.42}
-          lineJoin={style === 'burst' ? 'miter' : 'round'}
+          listening={false}
         />
-        {style === 'manga' && (
-          <Line
-            points={points.map((point, index) => point + (index % 2 === 0 ? 1.6 : -1.2))}
-            closed
-            stroke={element.stroke}
-            strokeWidth={Math.max(1, strokeWidth * 0.42)}
-            opacity={0.42}
-            tension={0.42}
-            lineJoin="round"
-          />
-        )}
+        <InkOutline
+          points={points}
+          stroke={element.stroke}
+          baseWidth={strokeWidth}
+          variance={style === 'manga' ? variance : variance * 0.55}
+          seed={seed}
+          angular={style === 'burst'}
+        />
+        <InkOutline
+          points={points.map((point, index) => point + (index % 2 === 0 ? 1.5 : -1))}
+          stroke={element.stroke}
+          baseWidth={Math.max(0.8, strokeWidth * 0.32)}
+          variance={variance * 0.65}
+          seed={seed + 211}
+          angular={style === 'burst'}
+        />
       </>
     );
   }
@@ -306,6 +399,12 @@ function BubbleNode({ element, selected }: { element: BubbleElement; selected: b
   const selectElement = useMangaStore((state) => state.selectElement);
   const textPadding = Math.max(20, element.fontSize * 0.55);
   const strokeWidth = element.strokeWidth ?? 3;
+  const variance = element.strokeVariance ?? 0.55;
+  const bubbleStyle = normalizedBubbleStyleForCanvas(element);
+  const usesInkOutline = bubbleStyle === 'manga' || bubbleStyle === 'cloud' || bubbleStyle === 'burst';
+  const tailPoints = bubbleTailPoints(element);
+  const tailFillPoints = filledTailPoints(element);
+  const inkSeed = element.roughSeed ?? hashString(element.id);
 
   return (
     <Group
@@ -328,13 +427,28 @@ function BubbleNode({ element, selected }: { element: BubbleElement; selected: b
       }}
     >
       <Line
-        points={bubbleTailPoints(element)}
+        points={tailFillPoints}
         closed
         fill={element.fill}
-        stroke={element.stroke}
-        strokeWidth={strokeWidth}
         lineJoin="round"
       />
+      {usesInkOutline ? (
+        <InkOutline
+          points={tailPoints}
+          stroke={element.stroke}
+          baseWidth={strokeWidth}
+          variance={variance}
+          seed={inkSeed + 503}
+        />
+      ) : (
+        <Line
+          points={tailPoints}
+          closed
+          stroke={element.stroke}
+          strokeWidth={strokeWidth}
+          lineJoin="round"
+        />
+      )}
       <BubbleBody element={element} />
       <Text
         x={textPadding}

@@ -77,6 +77,7 @@ export interface BubbleElement extends Omit<BaseElement, 'type'> {
   tailX: number;
   tailY: number;
   strokeWidth?: number;
+  strokeVariance?: number;
   roughSeed?: number;
   fill: string;
   stroke: string;

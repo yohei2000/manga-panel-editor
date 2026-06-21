@@ -135,6 +135,7 @@ function BubbleInspector({ element }: { element: BubbleElement }) {
           onChange={(bubbleStyle) => updateElement<BubbleElement>(element.id, { bubbleStyle })}
         />
         <NumberField label="線幅" value={element.strokeWidth ?? 3} min={1} max={16} step={0.5} onChange={(strokeWidth) => updateElement<BubbleElement>(element.id, { strokeWidth })} />
+        <NumberField label="筆圧ゆらぎ" value={element.strokeVariance ?? 0.7} min={0} max={1.4} step={0.05} onChange={(strokeVariance) => updateElement<BubbleElement>(element.id, { strokeVariance })} />
         <SelectField
           label="しっぽ方向"
           value={element.tailDirection ?? 'bottom'}

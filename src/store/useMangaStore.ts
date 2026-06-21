@@ -242,6 +242,7 @@ export const useMangaStore = create<MangaStore>((set, get) => ({
       tailY: height + 64,
       tailDirection: 'bottom',
       strokeWidth: 3,
+      strokeVariance: 0.7,
       roughSeed: Math.floor(Math.random() * 100000),
       fill: '#ffffff',
       stroke: '#111827'
