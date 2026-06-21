@@ -14,6 +14,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type {
   AiNameInputPackage,
   NameActor,
+  NameJointControlId,
+  NameJointAdjustments,
+  NamePoseReference,
   NameActorPose,
   NameBubble,
   NameCameraPreset,
@@ -45,6 +48,30 @@ const poseLabels: Record<NameActorPose, string> = {
   reaching: '手を伸ばす',
   surprised: '驚き'
 };
+
+const jointControls: Array<{
+  id: NameJointControlId;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+}> = [
+  { id: 'chestPitch', label: '胸 前後', min: -35, max: 35, step: 5 },
+  { id: 'chestTwist', label: '胸 ひねり', min: -45, max: 45, step: 5 },
+  { id: 'chestRoll', label: '胸 傾き', min: -35, max: 35, step: 5 },
+  { id: 'headPitch', label: '頭 上下', min: -35, max: 35, step: 5 },
+  { id: 'headTurn', label: '頭 向き', min: -55, max: 55, step: 5 },
+  { id: 'leftArmRaise', label: '左腕 前後', min: -120, max: 120, step: 5 },
+  { id: 'leftArmOpen', label: '左腕 開き', min: -120, max: 120, step: 5 },
+  { id: 'leftElbow', label: '左肘', min: -120, max: 120, step: 5 },
+  { id: 'rightArmRaise', label: '右腕 前後', min: -120, max: 120, step: 5 },
+  { id: 'rightArmOpen', label: '右腕 開き', min: -120, max: 120, step: 5 },
+  { id: 'rightElbow', label: '右肘', min: -120, max: 120, step: 5 },
+  { id: 'leftLegForward', label: '左脚 前後', min: -95, max: 95, step: 5 },
+  { id: 'leftKnee', label: '左膝', min: -120, max: 120, step: 5 },
+  { id: 'rightLegForward', label: '右脚 前後', min: -95, max: 95, step: 5 },
+  { id: 'rightKnee', label: '右膝', min: -120, max: 120, step: 5 }
+];
 
 const defaultScene = (): NameScene => ({
   title: 'ネーム案',
@@ -90,6 +117,15 @@ function setRotation(object: THREE.Object3D | undefined, x = 0, y = 0, z = 0) {
     return;
   }
   object.rotation.set(deg(x), deg(y), deg(z));
+}
+
+function addRotation(object: THREE.Object3D | undefined, x = 0, y = 0, z = 0) {
+  if (!object) {
+    return;
+  }
+  object.rotation.x += deg(x);
+  object.rotation.y += deg(y);
+  object.rotation.z += deg(z);
 }
 
 function createCapsule(length: number, radius: number, material: THREE.Material) {
@@ -296,6 +332,18 @@ function applyPose(group: THREE.Group, actor: NameActor) {
     setRotation(leftUpperLeg, 4, 0, -8);
     setRotation(rightUpperLeg, 4, 0, 8);
   }
+
+  const joints = actor.jointAdjustments ?? {};
+  addRotation(chest, joints.chestPitch ?? 0, joints.chestTwist ?? 0, joints.chestRoll ?? 0);
+  addRotation(neck, joints.headPitch ?? 0, joints.headTurn ?? 0, 0);
+  addRotation(leftUpperArm, joints.leftArmRaise ?? 0, 0, joints.leftArmOpen ?? 0);
+  addRotation(leftLowerArm, 0, 0, joints.leftElbow ?? 0);
+  addRotation(rightUpperArm, joints.rightArmRaise ?? 0, 0, joints.rightArmOpen ?? 0);
+  addRotation(rightLowerArm, 0, 0, joints.rightElbow ?? 0);
+  addRotation(leftUpperLeg, joints.leftLegForward ?? 0, 0, 0);
+  addRotation(leftLowerLeg, joints.leftKnee ?? 0, 0, 0);
+  addRotation(rightUpperLeg, joints.rightLegForward ?? 0, 0, 0);
+  addRotation(rightLowerLeg, joints.rightKnee ?? 0, 0, 0);
 }
 
 function createActor(actor: NameActor, selected: boolean) {
@@ -643,6 +691,32 @@ function NumberInput({
   );
 }
 
+function readBlobAsDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('画像を読み込めませんでした'));
+      }
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('画像を読み込めませんでした'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function createPoseReference(dataUrl: string, current?: NamePoseReference): NamePoseReference {
+  return {
+    dataUrl,
+    opacity: current?.opacity ?? 0.46,
+    x: current?.x ?? 0,
+    y: current?.y ?? 0,
+    scale: current?.scale ?? 1,
+    mirror: current?.mirror ?? false
+  };
+}
+
 function drawBubble(ctx: CanvasRenderingContext2D, bubble: NameBubble, width: number, height: number) {
   const x = bubble.x * width;
   const y = bubble.y * height;
@@ -664,6 +738,39 @@ function drawBubble(ctx: CanvasRenderingContext2D, bubble: NameBubble, width: nu
   ctx.restore();
 }
 
+function loadImage(dataUrl: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('画像を読み込めませんでした'));
+    image.src = dataUrl;
+  });
+}
+
+async function drawPoseReference(
+  ctx: CanvasRenderingContext2D,
+  poseReference: NamePoseReference | undefined,
+  width: number,
+  height: number
+) {
+  if (!poseReference) {
+    return;
+  }
+  const image = await loadImage(poseReference.dataUrl);
+  const baseScale = Math.min(width / image.naturalWidth, height / image.naturalHeight) * poseReference.scale;
+  const drawWidth = image.naturalWidth * baseScale;
+  const drawHeight = image.naturalHeight * baseScale;
+  const centerX = width / 2 + (poseReference.x / 100) * width;
+  const centerY = height / 2 + (poseReference.y / 100) * height;
+
+  ctx.save();
+  ctx.globalAlpha = poseReference.opacity;
+  ctx.translate(centerX, centerY);
+  ctx.scale(poseReference.mirror ? -1 : 1, 1);
+  ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+  ctx.restore();
+}
+
 function buildAiPrompt(scene: NameScene) {
   const actors = scene.actors
     .map((actor) => `${actor.name}: x=${actor.x}, z=${actor.z}, rotation=${actor.rotationY}deg, pose=${poseLabels[actor.pose]}`)
@@ -675,6 +782,9 @@ function buildAiPrompt(scene: NameScene) {
   return [
     scene.aiPrompt,
     '',
+    scene.poseReference ? 'Pose reference image is imported. Use it as the primary body pose guide.' : '',
+    scene.poseReference ? 'Align the 3D mannequin and generated character pose to the imported pose reference.' : '',
+    scene.poseReference ? '' : '',
     `Shot type: ${scene.shotType}`,
     `Camera: ${cameraLabels[scene.cameraPreset]} / ${scene.cameraAngle}`,
     `Mood: ${scene.mood}`,
@@ -713,7 +823,11 @@ function downloadCanvas(filename: string, canvas: HTMLCanvasElement) {
   link.remove();
 }
 
-function composeReferenceCanvas(source: HTMLCanvasElement, bubbles: NameBubble[]) {
+async function composeReferenceCanvas(
+  source: HTMLCanvasElement,
+  bubbles: NameBubble[],
+  poseReference: NamePoseReference | undefined
+) {
   const canvas = document.createElement('canvas');
   canvas.width = source.width;
   canvas.height = source.height;
@@ -722,6 +836,7 @@ function composeReferenceCanvas(source: HTMLCanvasElement, bubbles: NameBubble[]
     return null;
   }
   ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+  await drawPoseReference(ctx, poseReference, canvas.width, canvas.height);
   bubbles.forEach((bubble) => drawBubble(ctx, bubble, canvas.width, canvas.height));
   return canvas;
 }
@@ -730,7 +845,9 @@ export function NamePlanner() {
   const [scene, setScene] = useState<NameScene>(() => defaultScene());
   const [selectedActorId, setSelectedActorId] = useState(scene.actors[0]?.id ?? null);
   const [selectedBubbleId, setSelectedBubbleId] = useState(scene.bubbles[0]?.id ?? null);
+  const [poseImportMessage, setPoseImportMessage] = useState('未読込');
   const stageRef = useRef<ThreeNameStageHandle | null>(null);
+  const poseFileInputRef = useRef<HTMLInputElement | null>(null);
   const selectedActor = scene.actors.find((actor) => actor.id === selectedActorId) ?? null;
   const selectedBubble = scene.bubbles.find((bubble) => bubble.id === selectedBubbleId) ?? null;
   const prompt = useMemo(() => buildAiPrompt(scene), [scene]);
@@ -747,6 +864,94 @@ export function NamePlanner() {
       bubbles: current.bubbles.map((bubble) => (bubble.id === id ? { ...bubble, ...patch } : bubble))
     }));
   const moveActor = useCallback((id: string, x: number, z: number) => updateActor(id, { x, z }), [updateActor]);
+  const updateActorJoints = useCallback((id: string, patch: NameJointAdjustments) => {
+    setScene((current) => ({
+      ...current,
+      actors: current.actors.map((actor) => {
+        if (actor.id !== id) {
+          return actor;
+        }
+        return {
+          ...actor,
+          jointAdjustments: {
+            ...(actor.jointAdjustments ?? {}),
+            ...patch
+          }
+        };
+      })
+    }));
+  }, []);
+  const resetActorJoints = useCallback((id: string) => {
+    setScene((current) => ({
+      ...current,
+      actors: current.actors.map((actor) => (actor.id === id ? { ...actor, jointAdjustments: {} } : actor))
+    }));
+  }, []);
+  const updatePoseReference = useCallback((patch: Partial<NamePoseReference>) => {
+    setScene((current) => {
+      if (!current.poseReference) {
+        return current;
+      }
+      return {
+        ...current,
+        poseReference: {
+          ...current.poseReference,
+          ...patch
+        }
+      };
+    });
+  }, []);
+  const setPoseReferenceFromBlob = useCallback(async (blob: Blob) => {
+    if (!blob.type.startsWith('image/')) {
+      setPoseImportMessage('画像ではありません');
+      return;
+    }
+    const dataUrl = await readBlobAsDataUrl(blob);
+    setScene((current) => ({
+      ...current,
+      poseReference: createPoseReference(dataUrl, current.poseReference)
+    }));
+    setPoseImportMessage('読込済み');
+  }, []);
+
+  const importClipboardImage = useCallback(async () => {
+    if (!navigator.clipboard?.read) {
+      setPoseImportMessage('貼付け非対応');
+      return;
+    }
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find((type) => type.startsWith('image/'));
+        if (imageType) {
+          await setPoseReferenceFromBlob(await item.getType(imageType));
+          return;
+        }
+      }
+      setPoseImportMessage('画像なし');
+    } catch {
+      setPoseImportMessage('貼付け失敗');
+    }
+  }, [setPoseReferenceFromBlob]);
+
+  const clearPoseReference = useCallback(() => {
+    setScene((current) => ({ ...current, poseReference: undefined }));
+    setPoseImportMessage('未読込');
+  }, []);
+
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const item = Array.from(event.clipboardData?.items ?? []).find((clipboardItem) => clipboardItem.type.startsWith('image/'));
+      const file = item?.getAsFile();
+      if (!file) {
+        return;
+      }
+      event.preventDefault();
+      void setPoseReferenceFromBlob(file);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [setPoseReferenceFromBlob]);
 
   const addActor = () => {
     const actor: NameActor = {
@@ -775,12 +980,12 @@ export function NamePlanner() {
     setSelectedBubbleId(bubble.id);
   };
 
-  const exportReference = () => {
+  const exportReference = async () => {
     const source = stageRef.current?.getCanvas();
     if (!source) {
       return;
     }
-    const canvas = composeReferenceCanvas(source, scene.bubbles);
+    const canvas = await composeReferenceCanvas(source, scene.bubbles, scene.poseReference);
     if (canvas) {
       downloadCanvas('name-reference.png', canvas);
     }
@@ -830,6 +1035,70 @@ export function NamePlanner() {
           <textarea value={scene.compositionNote} onChange={(event) => updateScene({ compositionNote: event.target.value })} />
         </Field>
 
+        <h3>ポーズ参照</h3>
+        <div className="poseReferenceActions">
+          <button type="button" onClick={() => poseFileInputRef.current?.click()}>画像ファイル</button>
+          <button type="button" onClick={() => void importClipboardImage()}>クリップボード取込</button>
+          <button type="button" disabled={!scene.poseReference} onClick={clearPoseReference}>クリア</button>
+        </div>
+        <input
+          ref={poseFileInputRef}
+          className="hiddenInput"
+          type="file"
+          accept="image/*"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) {
+              void setPoseReferenceFromBlob(file);
+            }
+            event.currentTarget.value = '';
+          }}
+        />
+        <p className="metaLine">{poseImportMessage}</p>
+        {scene.poseReference && (
+          <div className="fieldGrid referenceControls">
+            <NumberInput
+              label="濃さ"
+              value={scene.poseReference.opacity}
+              min={0.05}
+              max={0.9}
+              step={0.05}
+              onChange={(opacity) => updatePoseReference({ opacity })}
+            />
+            <NumberInput
+              label="拡大"
+              value={scene.poseReference.scale}
+              min={0.3}
+              max={2.5}
+              step={0.05}
+              onChange={(scale) => updatePoseReference({ scale })}
+            />
+            <NumberInput
+              label="左右"
+              value={scene.poseReference.x}
+              min={-50}
+              max={50}
+              step={1}
+              onChange={(x) => updatePoseReference({ x })}
+            />
+            <NumberInput
+              label="上下"
+              value={scene.poseReference.y}
+              min={-50}
+              max={50}
+              step={1}
+              onChange={(y) => updatePoseReference({ y })}
+            />
+            <button
+              type="button"
+              className={scene.poseReference.mirror ? 'isSelected' : ''}
+              onClick={() => updatePoseReference({ mirror: !scene.poseReference?.mirror })}
+            >
+              左右反転
+            </button>
+          </div>
+        )}
+
         <h3>人物</h3>
         <div className="nameList">
           {scene.actors.map((actor) => (
@@ -874,6 +1143,38 @@ export function NamePlanner() {
             <NumberInput label="奥行" value={selectedActor.z} min={-2} max={2} onChange={(z) => updateActor(selectedActor.id, { z })} />
             <NumberInput label="向き" value={selectedActor.rotationY} min={-180} max={180} step={5} onChange={(rotationY) => updateActor(selectedActor.id, { rotationY })} />
             <NumberInput label="大きさ" value={selectedActor.scale} min={0.5} max={1.8} step={0.05} onChange={(scale) => updateActor(selectedActor.id, { scale })} />
+            <div className="fieldFull">
+              <div className="sectionHeader compactHeader">
+                <span className="fieldLabel">関節微調整</span>
+                <button type="button" onClick={() => resetActorJoints(selectedActor.id)}>リセット</button>
+              </div>
+              <div className="jointControlGrid">
+                {jointControls.map((control) => {
+                  const value = selectedActor.jointAdjustments?.[control.id] ?? 0;
+                  return (
+                    <label key={control.id} className="jointControl">
+                      <span>{control.label}</span>
+                      <input
+                        type="range"
+                        min={control.min}
+                        max={control.max}
+                        step={control.step}
+                        value={value}
+                        onChange={(event) => updateActorJoints(selectedActor.id, { [control.id]: Number(event.target.value) })}
+                      />
+                      <input
+                        type="number"
+                        min={control.min}
+                        max={control.max}
+                        step={control.step}
+                        value={value}
+                        onChange={(event) => updateActorJoints(selectedActor.id, { [control.id]: Number(event.target.value) })}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
       </aside>
@@ -886,6 +1187,19 @@ export function NamePlanner() {
           onSelectActor={setSelectedActorId}
           onMoveActor={moveActor}
         />
+        {scene.poseReference && (
+          <img
+            className="poseReferenceOverlay"
+            src={scene.poseReference.dataUrl}
+            alt=""
+            style={{
+              opacity: scene.poseReference.opacity,
+              transform: `translate(calc(-50% + ${scene.poseReference.x}%), calc(-50% + ${scene.poseReference.y}%)) scale(${
+                scene.poseReference.mirror ? -scene.poseReference.scale : scene.poseReference.scale
+              }, ${scene.poseReference.scale})`
+            }}
+          />
+        )}
         <div className="nameBubbleLayer">
           {scene.bubbles.map((bubble) => (
             <button
@@ -945,7 +1259,7 @@ export function NamePlanner() {
         </Field>
         <div className="exportButtons">
           <button type="button" onClick={() => void copyPrompt()}>プロンプトコピー</button>
-          <button type="button" onClick={exportReference}>参照PNG</button>
+          <button type="button" onClick={() => void exportReference()}>参照PNG</button>
           <button type="button" className="primaryButton" onClick={exportPackage}>AI入力JSON</button>
         </div>
       </aside>

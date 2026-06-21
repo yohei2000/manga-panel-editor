@@ -12,6 +12,34 @@ export type NameActorPose =
   | 'reaching'
   | 'surprised';
 
+export type NameJointControlId =
+  | 'chestPitch'
+  | 'chestTwist'
+  | 'chestRoll'
+  | 'headPitch'
+  | 'headTurn'
+  | 'leftArmRaise'
+  | 'leftArmOpen'
+  | 'leftElbow'
+  | 'rightArmRaise'
+  | 'rightArmOpen'
+  | 'rightElbow'
+  | 'leftLegForward'
+  | 'leftKnee'
+  | 'rightLegForward'
+  | 'rightKnee';
+
+export type NameJointAdjustments = Partial<Record<NameJointControlId, number>>;
+
+export interface NamePoseReference {
+  dataUrl: string;
+  opacity: number;
+  x: number;
+  y: number;
+  scale: number;
+  mirror: boolean;
+}
+
 export interface NameActor {
   id: string;
   name: string;
@@ -20,6 +48,7 @@ export interface NameActor {
   rotationY: number;
   scale: number;
   pose: NameActorPose;
+  jointAdjustments?: NameJointAdjustments;
 }
 
 export interface NameBubble {
@@ -39,6 +68,7 @@ export interface NameScene {
   mood: string;
   compositionNote: string;
   aiPrompt: string;
+  poseReference?: NamePoseReference;
   actors: NameActor[];
   bubbles: NameBubble[];
 }
